@@ -163,9 +163,9 @@ class KeyValueParser(configparser.ConfigParser):
 
         super().__init__(*args, **kwargs)
 
-        # Backup _comment_prefixes
+        # Backup comment prefixes
         self._comment_prefixes_backup = self._prefixes.full
-        # Unset _comment_prefixes so comments won't be skipped
+        # Unset comment prefixes so comments won't be skipped
         self._prefixes.full = ()
         # Starting point for the comment IDs
         self._comment_id = 0
