@@ -14,23 +14,31 @@ on:
   workflow_dispatch:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
+permissions:
+  contents: read
+
 jobs:
   # This workflow contains a single job called "build"
   test:
     # The type of runner that the job will run on
     runs-on: ubuntu-24.04
+    name: nspawn / Python ${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
     defaults:
       run:
         shell: bash
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
-          python-version: '3.11' # TrueNAS SCALE 24.04 Dragonfish
+          python-version: ${{ matrix.python-version }}
       - name: Tune GitHub-hosted runner network
-        uses: smorimoto/tune-github-hosted-runner-network@v1
+        uses: smorimoto/tune-github-hosted-runner-network@bb252dcb5c8609a31087e7993daa086f5a1c0069 # v1
 
       # Create a network namespace in the GitHub-hosted runner VM,
       # simulating a primary bridge network on TrueNAS SCALE
@@ -74,6 +82,7 @@ jobs:
           uname -r
           cat /etc/os-release
           python3 --version
+          sudo env "PATH=$PATH" python3 --version
           ip addr
 
       # # TODO: create zpool with virtual disks, create jailmaker dataset and test jlmkr.py from there
@@ -93,5 +102,5 @@ jobs:
           PYTHONUNBUFFERED: 1
         run: |
           sudo chown 0:0 jlmkr.py ./test/test-jlmkr
-          sudo bash ./test/test-jlmkr
-          sudo ./test/test.sh
+          sudo env "PATH=$PATH" bash ./test/test-jlmkr
+          sudo env "PATH=$PATH" ./test/test.sh
