@@ -1,0 +1,43 @@
+name: Python compatibility
+
+on:
+  push:
+    paths:
+      - "jlmkr.py"
+      - "test/test_python_compat.py"
+      - ".github/workflows/python-compatibility.yml"
+  pull_request:
+    paths:
+      - "jlmkr.py"
+      - "test/test_python_compat.py"
+      - ".github/workflows/python-compatibility.yml"
+  workflow_dispatch:
+  # Catch newly released Python versions even if this repository is unchanged.
+  schedule:
+    - cron: "23 5 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 = older TrueNAS, 3.12/3.13 = current migrations.
+        # 3.14 stays tested after 3.x advances to a newer stable release.
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.x"]
+    name: Python ${{ matrix.python-version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          check-latest: true
+      - name: Compile sources
+        run: python -m compileall -q jlmkr.py test/test_python_compat.py
+      - name: Run compatibility regressions (deprecations are errors)
+        env:
+          PYTHONWARNINGS: "error::DeprecationWarning,error::PendingDeprecationWarning"
+        run: python -m unittest discover -s test -p 'test_python_compat.py' -v
