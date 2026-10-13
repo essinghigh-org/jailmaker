@@ -114,8 +114,16 @@ as_root midclt call pool.dataset.create "$payload" >/dev/null || die "Dataset cr
   die "Mountpoint is not empty. Refusing to clone."
 
 printf 'Cloning Jailmaker (%s)...\n' "$REF" >&2
-as_root git clone --depth 1 --branch "$REF" "$REPO" "$destination" ||
-  die "Clone failed. Dataset $dataset was left intact for investigation."
+if ! as_root git clone --depth 1 --branch "$REF" "$REPO" "$destination"; then
+  # Only remove our new dataset if the failed clone left it empty.
+  if [[ -d "$destination" ]] &&
+    [[ -z "$(find "$destination" -mindepth 1 -maxdepth 1 -print -quit)" ]] &&
+    as_root midclt call pool.dataset.delete "$dataset" \
+      '{"recursive":false,"force":false}' >/dev/null; then
+    die "Clone failed; removed the empty dataset."
+  fi
+  die "Clone failed; retained dataset $dataset for inspection."
+fi
 as_root chown 0:0 "$destination/jlmkr.py"
 as_root chmod +x "$destination/jlmkr.py"
 printf '\nInstalled at %s\n' "$destination" >&2
@@ -125,22 +133,23 @@ entry="$(getent passwd "$login_user")" || die "Unknown account $login_user."
 login_home="$(printf '%s' "$entry" | cut -d: -f6)"
 login_shell="$(basename "$(printf '%s' "$entry" | cut -d: -f7)")"
 if [[ "$login_shell" == bash || "$login_shell" == zsh ]]; then
-  if ask_yes_no "Set up $login_shell alias and shell completions?"; then
+  if ask_yes_no "Set up $login_shell jlmkr command and shell completions?"; then
     rc="$login_home/.$login_shell"rc
     completion="$destination/completions/jlmkr.$login_shell"
     [[ -f "$completion" ]] || die "Missing $completion."
     if [[ -f "$rc" ]] && grep -Fq '# >>> Jailmaker >>>' "$rc"; then
       printf 'Existing Jailmaker setup found in %s; unchanged.\n' "$rc" >&2
     else
-      if [[ "$login_user" == root ]]; then
-        alias_cmd="$destination/jlmkr.py"
-      else
-        alias_cmd="sudo -E $destination/jlmkr.py"
-      fi
+      # A shell function retains its command name for Zsh completion;
+      # aliases are expanded before Zsh matches a completion function.
       config="$(
         printf '\n# >>> Jailmaker >>>\n'
         printf 'export JLMKR_HOME=%q\n' "$destination"
-        printf "alias jlmkr='%s'\n" "$alias_cmd"
+        if [[ "$login_user" == root ]]; then
+          printf 'jlmkr() { "$JLMKR_HOME/jlmkr.py" "$@"; }\n'
+        else
+          printf 'jlmkr() { sudo -E "$JLMKR_HOME/jlmkr.py" "$@"; }\n'
+        fi
         printf 'source "$JLMKR_HOME/completions/jlmkr.%s"\n' "$login_shell"
         printf '# <<< Jailmaker <<<\n'
       )"

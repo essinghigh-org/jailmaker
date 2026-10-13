@@ -21,6 +21,8 @@ class InstallerTests(unittest.TestCase):
         bin_dir.mkdir()
         self.mount = self.base / "mnt"
         self.mount.mkdir()
+        self.home = self.base / "home"
+        self.home.mkdir()
 
         # The test copy redirects /mnt while leaving the shipping script intact.
         contents = (ROOT / "install.sh").read_text().replace(
@@ -35,6 +37,10 @@ class InstallerTests(unittest.TestCase):
             'if [ "$1" = chown ]; then exit 0; fi\n'
             'exec "$@"\n'
         )
+        (bin_dir / "getent").write_text(
+            '#!/bin/sh\n'
+            'printf "%s:x:1000:1000::%s:/bin/bash\\n" "$2" "$MOCK_HOME"\n'
+        )
         (bin_dir / "midclt").write_text(
             '#!/bin/sh\n'
             'case "$2" in\n'
@@ -44,12 +50,18 @@ class InstallerTests(unittest.TestCase):
             '    name=$(printf "%s" "$3" | python3 -c '
             '\'import json,sys; print(json.load(sys.stdin)["name"])\')\n'
             '    mkdir -p "$JLMKR_TEST_DEST/$name" ;;\n'
+            '  pool.dataset.delete)\n'
+            '    rmdir "$JLMKR_TEST_DEST/$3" ;;\n'
             '  *) exit 1 ;;\n'
             'esac\n'
         )
         (bin_dir / "git").write_text(
             '#!/bin/sh\n'
             'for dest; do :; done\n'
+            'if [ "${MOCK_GIT_FAIL:-}" = empty ]; then exit 1; fi\n'
+            'if [ "${MOCK_GIT_FAIL:-}" = partial ]; then\n'
+            '  touch "$dest/partial"; exit 1\n'
+            'fi\n'
             'mkdir -p "$dest/completions"\n'
             'touch "$dest/jlmkr.py"\n'
             'cp "$MOCK_SOURCE/completions/jlmkr.bash" "$dest/completions/"\n'
@@ -61,6 +73,7 @@ class InstallerTests(unittest.TestCase):
             os.environ,
             PATH=f"{bin_dir}:{os.environ['PATH']}",
             JLMKR_TEST_DEST=str(self.mount),
+            MOCK_HOME=str(self.home),
             MOCK_SOURCE=str(ROOT),
         )
 
@@ -125,6 +138,40 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertTrue((self.mount / "nvme" / "trial" / "jlmkr.py").exists())
         self.assertIn("Installation complete", out)
+
+    def test_shell_configuration_stays_in_test_home(self):
+        code, out = self.run_interactive([
+            ("Selected:", b"1\n"),
+            ("Dataset name", b"\n"),
+            ("Continue?", b"\n"),
+            ("Set up", b"y\n"),
+        ])
+        self.assertEqual(code, 0, out)
+        rc = (self.home / ".bashrc").read_text()
+        self.assertIn('jlmkr() { sudo -E "$JLMKR_HOME/jlmkr.py" "$@"; }', rc)
+        self.assertIn('source "$JLMKR_HOME/completions/jlmkr.bash"', rc)
+
+    def test_failed_clone_removes_only_empty_dataset(self):
+        self.env["MOCK_GIT_FAIL"] = "empty"
+        code, out = self.run_interactive([
+            ("Selected:", b"1\n"),
+            ("Dataset name", b"\n"),
+            ("Continue?", b"\n"),
+        ])
+        self.assertNotEqual(code, 0)
+        self.assertIn("removed the empty dataset", out)
+        self.assertFalse((self.mount / "data" / "jailmaker").exists())
+
+    def test_failed_clone_keeps_nonempty_dataset(self):
+        self.env["MOCK_GIT_FAIL"] = "partial"
+        code, out = self.run_interactive([
+            ("Selected:", b"1\n"),
+            ("Dataset name", b"\n"),
+            ("Continue?", b"\n"),
+        ])
+        self.assertNotEqual(code, 0)
+        self.assertIn("retained dataset", out)
+        self.assertTrue((self.mount / "data" / "jailmaker" / "partial").exists())
 
     def test_cancel_before_dataset_creation(self):
         code, out = self.run_interactive([
