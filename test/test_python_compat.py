@@ -52,6 +52,31 @@ class KeyValueParserCompatibilityTests(unittest.TestCase):
             parser.my_get("systemd_nspawn_user_args"),
         )
 
+    def test_user_defined_comment_key_survives_round_trip(self):
+        source = "__jlmkr_comment_0 = keep\n# note\n__jlmkr_comment_1 = retain\n"
+        parser = KeyValueParser()
+        parser.read_file(io.StringIO(source))
+        out = io.StringIO()
+        parser.write(out)
+        self.assertIn("__jlmkr_comment_0=keep", out.getvalue())
+        self.assertIn("__jlmkr_comment_1=retain", out.getvalue())
+        self.assertIn("# note", out.getvalue())
+        reread = KeyValueParser()
+        reread.read_file(io.StringIO(out.getvalue()))
+        self.assertEqual(reread.my_get("__jlmkr_comment_0"), "keep")
+        self.assertEqual(reread.my_get("__jlmkr_comment_1"), "retain")
+
+    def test_comment_key_collision_across_reads(self):
+        parser = KeyValueParser()
+        parser.read_file(io.StringIO("__jlmkr_comment_0=keep\n"))
+        parser.read_file(io.StringIO("# note\n"))
+        out = io.StringIO()
+        parser.write(out)
+        reread = KeyValueParser()
+        reread.read_file(io.StringIO(out.getvalue()))
+        self.assertEqual(reread.my_get("__jlmkr_comment_0"), "keep")
+        self.assertIn("# note", out.getvalue())
+
     def test_boolean_setter(self):
         parser = KeyValueParser()
         parser.read_file(io.StringIO("startup=0\n"))
@@ -66,7 +91,7 @@ class CommandLineCompatibilityTests(unittest.TestCase):
         # Running the CLI requires a root-owned script. Importing is safe on
         # ordinary CI runners and catches warnings during module initialisation.
         result = subprocess.run(
-            [sys.executable, "-W", "error::DeprecationWarning", "-c", "import jlmkr"],
+            [sys.executable, "-W", "error::DeprecationWarning", "-W", "error::PendingDeprecationWarning", "-c", "import jlmkr"],
             cwd=ROOT,
             capture_output=True,
             text=True,

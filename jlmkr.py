@@ -168,6 +168,7 @@ class KeyValueParser(configparser.ConfigParser):
         self._comment_prefixes_backup = tuple(kwargs["comment_prefixes"])
         # Starting point for the comment IDs
         self._comment_id = 0
+        self._generated_comment_keys = set()
         # Default delimiter to use
         delimiter = self._delimiters[0]
         # Template to store comments as key value pair
@@ -176,7 +177,7 @@ class KeyValueParser(configparser.ConfigParser):
         self._comment_template = "__jlmkr_comment_{0} " + delimiter + " {1}"
         # Regex to strip the synthetic key when serialising the original line.
         self._comment_regex = re.compile(
-            r"^__jlmkr_comment_\d+\s*" + re.escape(delimiter) + r"[^\S\n]*"
+            r"^(__jlmkr_comment_\d+)\s*" + re.escape(delimiter) + r"[^\S\n]*"
         )
         # Regex to match cosmetic newlines (skips newlines in multiline values):
         # consecutive whitespace from start of line followed by a line not starting with whitespace
@@ -197,13 +198,25 @@ class KeyValueParser(configparser.ConfigParser):
     # TODO: can I create a solution which not depends on the internal _read method?
     def _read(self, fp, fpname):
         lines = fp.readlines()
-        cosmetic_newline_indices = self._find_cosmetic_newlines("".join(lines))
+        source = "".join(lines)
+        cosmetic_newline_indices = self._find_cosmetic_newlines(source)
+        source = source.casefold()
+        existing_options = (
+            set(self.options(self._section_name))
+            if self.has_section(self._section_name)
+            else set()
+        )
         # Preprocess config file to preserve comments
         for i, line in enumerate(lines):
             if i in cosmetic_newline_indices or line.startswith(
                 self._comment_prefixes_backup
             ):
-                # Store cosmetic newline or comment with unique key
+                # Avoid collisions with user-defined option names.
+                key = f"__jlmkr_comment_{self._comment_id}"
+                while key in source or key in existing_options:
+                    self._comment_id += 1
+                    key = f"__jlmkr_comment_{self._comment_id}"
+                self._generated_comment_keys.add(key)
                 lines[i] = self._comment_template.format(self._comment_id, line)
                 self._comment_id += 1
 
@@ -239,8 +252,9 @@ class KeyValueParser(configparser.ConfigParser):
             lines = sfile.readlines()
 
         for i, line in enumerate(lines):
-            # Remove the comment id prefix
-            lines[i] = self._comment_regex.sub("", line, 1)
+            match = self._comment_regex.match(line)
+            if match and match.group(1) in self._generated_comment_keys:
+                lines[i] = line[match.end():]
 
         fp.write("".join(lines).rstrip())
 
