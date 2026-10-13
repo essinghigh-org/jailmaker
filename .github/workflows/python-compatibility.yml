@@ -5,11 +5,17 @@ on:
     paths:
       - "jlmkr.py"
       - "test/test_python_compat.py"
+      - "test/test_installer.py"
+      - "install.sh"
+      - "completions/**"
       - ".github/workflows/python-compatibility.yml"
   pull_request:
     paths:
       - "jlmkr.py"
       - "test/test_python_compat.py"
+      - "test/test_installer.py"
+      - "install.sh"
+      - "completions/**"
       - ".github/workflows/python-compatibility.yml"
   workflow_dispatch:
   # Catch newly released Python versions even if this repository is unchanged.
@@ -41,3 +47,5 @@ jobs:
         env:
           PYTHONWARNINGS: "error::DeprecationWarning,error::PendingDeprecationWarning"
         run: python -m unittest discover -s test -p 'test_python_compat.py' -v
+      - name: Test interactive installer without TrueNAS
+        run: python -m unittest discover -s test -p 'test_installer.py' -v
