@@ -161,11 +161,12 @@ class KeyValueParser(configparser.ConfigParser):
         if "comment_prefixes" not in kwargs:
             kwargs["comment_prefixes"] = "#"
 
+        # Preprocess comments ourselves so indented comments in multiline
+        # scripts remain part of the value, as in the original parser.
+        # ConfigParser private comment attributes vary between Python versions.
+        self._comment_prefixes_backup = tuple(kwargs["comment_prefixes"] or ())
+        kwargs["comment_prefixes"] = ()
         super().__init__(*args, **kwargs)
-
-        # Track configured comment prefixes without relying on ConfigParser
-        # internals, which changed in Python 3.13 and again in 3.14.
-        self._comment_prefixes_backup = tuple(kwargs["comment_prefixes"])
         # Starting point for the comment IDs
         self._comment_id = 0
         self._generated_comment_keys = set()

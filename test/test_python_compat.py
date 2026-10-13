@@ -77,6 +77,36 @@ class KeyValueParserCompatibilityTests(unittest.TestCase):
         self.assertEqual(reread.my_get("__jlmkr_comment_0"), "keep")
         self.assertIn("# note", out.getvalue())
 
+    def test_comments_inside_multiline_script(self):
+        source = (
+            "initial_setup=#!/bin/sh\n"
+            "    # Must remain in the script\n"
+            "    echo ready\n"
+        )
+        parser = KeyValueParser()
+        parser.read_file(io.StringIO(source))
+        self.assertIn("# Must remain in the script", parser.my_get("initial_setup"))
+        output = io.StringIO()
+        parser.write(output)
+        reread = KeyValueParser()
+        reread.read_file(io.StringIO(output.getvalue()))
+        self.assertEqual(reread.my_get("initial_setup"), parser.my_get("initial_setup"))
+
+    def test_templates_round_trip(self):
+        for path in (ROOT / "templates").glob("*/config"):
+            with self.subTest(template=path.parent.name):
+                source = path.read_text()
+                keys = [line.split("=", 1)[0] for line in source.splitlines()
+                        if line and not line[0].isspace() and not line.startswith("#") and "=" in line]
+                first = KeyValueParser()
+                first.read_file(io.StringIO(source))
+                output = io.StringIO()
+                first.write(output)
+                second = KeyValueParser()
+                second.read_file(io.StringIO(output.getvalue()))
+                for key in keys:
+                    self.assertEqual(first.my_get(key), second.my_get(key))
+
     def test_boolean_setter(self):
         parser = KeyValueParser()
         parser.read_file(io.StringIO("startup=0\n"))
