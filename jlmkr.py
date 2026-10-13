@@ -163,19 +163,20 @@ class KeyValueParser(configparser.ConfigParser):
 
         super().__init__(*args, **kwargs)
 
-        # Backup comment prefixes
-        self._comment_prefixes_backup = self._prefixes.full
-        # Unset comment prefixes so comments won't be skipped
-        self._prefixes.full = ()
+        # Track configured comment prefixes without relying on ConfigParser
+        # internals, which changed in Python 3.13 and again in 3.14.
+        self._comment_prefixes_backup = tuple(kwargs["comment_prefixes"])
         # Starting point for the comment IDs
         self._comment_id = 0
         # Default delimiter to use
         delimiter = self._delimiters[0]
         # Template to store comments as key value pair
-        self._comment_template = "#{0} " + delimiter + " {1}"
-        # Regex to match the comment prefix
+        # Synthetic keys must not start with a comment prefix, so the stdlib
+        # parser can retain them without touching its private parser state.
+        self._comment_template = "__jlmkr_comment_{0} " + delimiter + " {1}"
+        # Regex to strip the synthetic key when serialising the original line.
         self._comment_regex = re.compile(
-            r"^#\d+\s*" + re.escape(delimiter) + r"[^\S\n]*"
+            r"^__jlmkr_comment_\d+\s*" + re.escape(delimiter) + r"[^\S\n]*"
         )
         # Regex to match cosmetic newlines (skips newlines in multiline values):
         # consecutive whitespace from start of line followed by a line not starting with whitespace
