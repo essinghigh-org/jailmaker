@@ -2,10 +2,6 @@
 
 Persistent Linux 'jails' on TrueNAS SCALE to install software (k3s, docker, portainer, podman, etc.) with full access to all files via bind mounts.
 
-## Project Unmaintained
-
-[As announced](https://github.com/Jip-Hop/jailmaker/discussions/241) this repo is no longer maintained by the original author: Jip-Hop. The final release is v2.1.1 which has been tested to be compatible with TrueNAS SCALE 24.10.0. Perhaps development continues in [one of the forks](https://github.com/Jip-Hop/jailmaker/forks). But since [iX has decided to integrate Incus in the SCALE 25.04 Fangtooth](https://github.com/truenas/middleware/pull/14592) it's probably best to start using that once it's available instead of relying on `jailmaker` and `systemd-nspawn`.
-
 ## Video Tutorial
 
 [![TrueNAS Scale - Setting up Sandboxes with Jailmaker - YouTube Video](https://img.youtube.com/vi/S0nTRvAHAP8/0.jpg)<br>Watch on YouTube](https://www.youtube.com/watch?v=S0nTRvAHAP8 "TrueNAS Scale - Setting up Sandboxes with Jailmaker - YouTube Video")
@@ -31,7 +27,7 @@ Beginning with 24.04 (Dragonfish), TrueNAS SCALE officially includes the systemd
 
 ```shell
 cd /mnt/mypool/jailmaker
-curl --location --remote-name https://raw.githubusercontent.com/Jip-Hop/jailmaker/main/jlmkr.py
+curl --location --remote-name https://raw.githubusercontent.com/essinghigh-org/jailmaker/main/jlmkr.py
 chmod +x jlmkr.py
 ```
 
@@ -218,7 +214,7 @@ The rootfs image `jlmkr.py` downloads comes from the [Linux Containers Image ser
 
 ## Filing Issues and Community Support
 
-When in need of help or when you think you've found a bug in `jailmaker`, [please start with reading this](https://github.com/Jip-Hop/jailmaker/discussions/135).
+For bugs or support requests, [open an issue](https://github.com/essinghigh-org/jailmaker/issues).
 
 ## References
 
